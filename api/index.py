@@ -12,10 +12,9 @@ app = Flask(__name__)
 app.config['CORS_HEADERS'] = 'Content-Type'
 CORS(app)
 
-
-NOTION_SECRET=config.get('NOTION_SECRET') or os.environ.get('NOTION_SECRET')
-DATABASE_ID=config.get('DATABASE_ID') or os.environ.get('DATABASE_ID')
-NOTION_VERSION=config.get('NOTION_VERSION') or os.environ.get('NOTION_VERSION')
+NOTION_SECRET = config.get('NOTION_SECRET') or os.environ.get('NOTION_SECRET')
+DATABASE_ID = config.get('DATABASE_ID') or os.environ.get('DATABASE_ID')
+NOTION_VERSION = config.get('NOTION_VERSION') or os.environ.get('NOTION_VERSION')
 
 url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
 
@@ -27,9 +26,11 @@ headers={
 
 create_url = "https://api.notion.com/v1/pages"
 
+archive_url = "https://api.notion.com/v1/pages"
+
 @app.route('/api/tasks', methods=['GET', 'POST'])
 @cross_origin()
-def home():
+def tasks():
     if request.method == 'POST':
         json_data = json.loads(request.get_data())
 
@@ -39,13 +40,10 @@ def home():
             "parent": { "type": "database_id", "database_id": DATABASE_ID },
             "properties": {
                 "name": {
-                    "type": "title",
-                    "title": [{ "type": "text", "text": { "content": name } }]
+                    "title": [{ "text": { "content": name } }]
                 }
             },
         }))
-
-        # print(res)
         
         return jsonify({ "status": True })
 
@@ -53,8 +51,38 @@ def home():
 
     return jsonify({ "tasks": parse_results(res.json()['results']) })
 
-def create_task(name=None):
-    print('task name', name)
+@app.route('/api/tasks/<task_id>', methods=['PUT', 'DELETE'])
+@cross_origin()
+def task(task_id):
+    if request.method == 'PUT':
+        json_data = json.loads(request.get_data())
+
+        name = json_data['name']
+        is_completed = json_data['isCompleted']
+
+        r.patch(f"{archive_url}/{task_id}", headers=headers, data=json.dumps({
+            "properties": {
+                "name": {
+                    "title": [{
+                        "text": {
+                            "content": name
+                        }
+                    }]
+                },
+                "isCompleted": {
+                    "checkbox": is_completed,
+                }
+            }
+        }))
+
+        return jsonify({ "status": True })
+
+    r.patch(f"{archive_url}/{task_id}", headers=headers, data=json.dumps({
+        "archived": True
+    }))
+    
+    return jsonify({ "status": True })
+
 
 def parse_results(results):
     result = []
@@ -69,7 +97,7 @@ def parse_results(results):
 
 class TaskModel:
     def __init__(self, raw_record) -> None:
-        self.id = raw_record['properties']['id']['unique_id']['number']
+        self.id = raw_record['id'] # raw_record['properties']['id']['unique_id']['number']
         self.name = raw_record['properties']['name']['title'][0]['text']['content']
         self.is_complete = raw_record['properties']['isCompleted']['checkbox']
 
