@@ -44,8 +44,10 @@ def tasks():
                 }
             },
         }))
+
+        created_task = res.json()
         
-        return jsonify({ "status": True })
+        return jsonify({ "status": True, "id": created_task['id'] })
 
     res = r.post(url, headers=headers)
 
